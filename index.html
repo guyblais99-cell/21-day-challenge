@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>21-Day Challenge Tracker</title>
+    
+    <!-- PWA Setup: Dynamically linked manifest (Data URI for single file compliance) -->
+    <link rel="manifest" id="manifest-link">
+    
+    <!-- Load Tailwind CSS --><script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        // Define a custom purple palette
+                        'primary-purple': '#8B5CF6', // A vibrant purple
+                        'primary-purple-dark': '#7C3AED', // Slightly darker for hover
+                        'secondary-purple': '#A78BFA', // Lighter purple for accents
+                        'completed-day': '#8B5CF6', // The new completed color
+                        'completed-shadow': '#a78bfa', // Shadow for completed days
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Use Inter font --><style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+    </style>
+</head>
+<body class="bg-gradient-to-br from-indigo-100 to-purple-100 min-h-screen flex items-center justify-center p-4">
+    <div id="app" class="w-full max-w-lg bg-white shadow-2xl rounded-xl p-6 md:p-8">
+        <!-- New ID for Dynamic Title Display -->
+        <h1 id="challenge-title-display" class="text-3xl font-extrabold text-gray-900 mb-2 text-center">21-Day Challenge</h1>
+        <p class="text-center text-sm text-secondary-purple font-medium mb-6">Track your journey to a new habit!</p>
+
+        <!-- Loading/Error Indicator --><div id="status" class="text-center mb-4 text-sm font-medium text-gray-500">
+            Initializing app...
+        </div>
+
+        <!-- Setup Form (Hidden by default) --><div id="setup-container" class="space-y-4 p-4 border-2 border-dashed border-primary-purple rounded-lg hidden">
+            <h2 class="text-xl font-semibold text-gray-800">Challenge Setup</h2>
+            
+            <!-- New Challenge Title Input -->
+            <div class="space-y-1">
+                <label for="challenge-title" class="block text-sm font-medium text-gray-700">Name Your Challenge (e.g., "Daily Running"):</label>
+                <input type="text" id="challenge-title" value="21-Day Challenge" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-primary-purple focus:border-primary-purple">
+            </div>
+
+            <div class="space-y-1">
+                <label for="start-date" class="block text-sm font-medium text-gray-700">Select Challenge Start Date:</label>
+                <input type="date" id="start-date" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-primary-purple focus:border-primary-purple">
+            </div>
+            <div id="end-date-display" class="text-sm text-gray-600">
+                The challenge will run for 21 days.
+            </div>
+            <button id="start-challenge-btn"
+                class="w-full py-2 px-4 bg-primary-purple text-white font-semibold rounded-lg shadow-md hover:bg-primary-purple-dark transition duration-150">
+                Start Challenge
+            </button>
+        </div>
+
+        <!-- Challenge Grid (Hidden by default) --><div id="challenge-container" class="hidden">
+            <div class="flex flex-col md:flex-row justify-between items-center mb-4 p-3 bg-purple-50 rounded-lg">
+                <div class="text-sm font-medium text-gray-700 mb-2 md:mb-0">
+                    Challenge Dates: <span id="challenge-dates" class="font-bold text-primary-purple"></span>
+                </div>
+                <button id="reset-challenge-btn"
+                    class="text-xs py-1 px-3 bg-red-100 text-red-600 font-medium rounded-full hover:bg-red-200 transition duration-150">
+                    Reset Challenge
+                </button>
+            </div>
+            <div id="challenge-grid" class="grid grid-cols-7 gap-3">
+                <!-- Days will be generated here --></div>
+            <div id="progress-bar-container" class="mt-6">
+                <p class="text-sm font-medium text-gray-700 mb-1">Progress: <span id="progress-text">0%</span></p>
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                    <div id="progress-bar" class="bg-primary-purple h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase Scripts and PWA Logic --><script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, getDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global variables provided by the environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app;
+        let db;
+        let auth;
+        let userId = null;
+        const CHALLENGE_DAYS = 21;
+        const COLLECTION_PATH = 'challenge_tracker';
+        const DOCUMENT_ID = 'data';
+
+        const statusEl = document.getElementById('status');
+        const setupContainer = document.getElementById('setup-container');
+        const challengeContainer = document.getElementById('challenge-container');
+        const challengeGrid = document.getElementById('challenge-grid');
+        const startDateInput = document.getElementById('start-date');
+        const endDateDisplay = document.getElementById('end-date-display');
+        const startDateBtn = document.getElementById('start-challenge-btn');
+        const resetBtn = document.getElementById('reset-challenge-btn');
+        const challengeDatesEl = document.getElementById('challenge-dates');
+        const progressBar = document.getElementById('progress-bar');
+        const progressTextEl = document.getElementById('progress-text');
+        
+        // New DOM references
+        const challengeTitleInput = document.getElementById('challenge-title');
+        const challengeTitleDisplay = document.getElementById('challenge-title-display');
+        const manifestLink = document.getElementById('manifest-link');
+
+
+        // --- Utility Functions ---
+
+        /**
+         * Formats a Date object to YYYY-MM-DD string.
+         * @param {Date} date
+         * @returns {string}
+         */
+        function formatDate(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        /**
+         * Adds days to a Date object.
+         * @param {Date} date
+         * @param {number} days
+         * @returns {Date}
+         */
+        function addDays(date, days) {
+            const newDate = new Date(date);
+            newDate.setDate(newDate.getDate() + days);
+            return newDate;
+        }
+        
+        /**
+         * Gets the abbreviated day name for a Date object.
+         * @param {Date} date
+         * @returns {string} (e.g., 'Sun', 'Mon')
+         */
+        function getDayName(date) {
+            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            return days[date.getDay()];
+        }
+
+
+        /**
+         * Calculates the end date and generates the 21-day map.
+         * @param {string} startDateString - YYYY-MM-DD
+         * @param {string} title - The challenge title
+         * @param {Object<string, boolean>} [existingCompletedDays={}]
+         * @returns {{title: string, startDate: string, endDate: string, completedDays: Object<string, boolean>}}
+         */
+        function createChallengeData(startDateString, title, existingCompletedDays = {}) {
+            // FIX: Parse date parts to create a local date, avoiding UTC timezone shift issue
+            const parts = startDateString.split('-');
+            // new Date(year, monthIndex, day) - Month is 0-indexed in JS Date constructor
+            const startDate = new Date(parts[0], parts[1] - 1, parts[2]); 
+            
+            const endDate = addDays(startDate, CHALLENGE_DAYS - 1);
+            const challengeData = {
+                title: title, // Store the title
+                startDate: startDateString,
+                endDate: formatDate(endDate),
+                completedDays: {}
+            };
+
+            for (let i = 0; i < CHALLENGE_DAYS; i++) {
+                const dayDate = addDays(startDate, i);
+                const dayDateString = formatDate(dayDate);
+                // Preserve existing completion status if available
+                challengeData.completedDays[dayDateString] = existingCompletedDays[dayDateString] || false;
+            }
+
+            return challengeData;
+        }
+
+        // --- Firebase/Firestore Logic ---
+
+        /**
+         * Gets the Firestore document reference for the private challenge data.
+         * @returns {import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js").DocumentReference}
+         */
+        function getChallengeDocRef() {
+            if (!db || !userId) throw new Error("Database or User not initialized.");
+            // Private data path: /artifacts/{appId}/users/{userId}/{collectionName}/{documentId}
+            return doc(db, 'artifacts', appId, 'users', userId, COLLECTION_PATH, DOCUMENT_ID);
+        }
+
+        /**
+         * Saves the new challenge configuration to Firestore.
+         * @param {Object} data - The full challenge data object
+         */
+        async function saveChallengeConfig(data) {
+            try {
+                const docRef = getChallengeDocRef();
+                await setDoc(docRef, data);
+                console.log("Challenge configuration saved successfully.");
+            } catch (error) {
+                console.error("Error saving challenge configuration:", error);
+                statusEl.textContent = "Error saving data. See console for details.";
+            }
+        }
+
+        /**
+         * Updates the completion status for a specific day.
+         * @param {string} dateString - YYYY-MM-DD
+         * @param {boolean} isCompleted
+         */
+        async function updateDayCompletion(dateString, isCompleted) {
+            try {
+                const docRef = getChallengeDocRef();
+                // Firestore update needs to specify the nested path
+                await updateDoc(docRef, {
+                    [`completedDays.${dateString}`]: isCompleted
+                });
+                console.log(`Day ${dateString} updated to ${isCompleted}`);
+            } catch (error) {
+                console.error("Error updating day completion:", error);
+                statusEl.textContent = "Error updating completion. See console for details.";
+            }
+        }
+
+        /**
+         * Renders the challenge grid based on the provided data.
+         * @param {{title: string, startDate: string, endDate: string, completedDays: Object<string, boolean>}} challengeData
+         */
+        function renderChallenge(challengeData) {
+            challengeGrid.innerHTML = '';
+            const { title, startDate, endDate, completedDays } = challengeData;
+            let completedCount = 0;
+
+            // Display the custom challenge title
+            challengeTitleDisplay.textContent = title; 
+            challengeDatesEl.textContent = `${startDate} - ${endDate}`;
+            challengeContainer.classList.remove('hidden');
+            setupContainer.classList.add('hidden');
+            statusEl.textContent = "Challenge is active!";
+
+            // Use the safe date parsing here for rendering too
+            const parts = startDate.split('-');
+            const startDateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+
+            for (let i = 0; i < CHALLENGE_DAYS; i++) {
+                const dayDate = addDays(startDateObj, i);
+                const dayDateString = formatDate(dayDate);
+                const dayName = getDayName(dayDate); // Get the day of the week
+                const isCompleted = completedDays[dayDateString] || false;
+                const dayNumber = i + 1;
+
+                if (isCompleted) {
+                    completedCount++;
+                }
+
+                // Day Card Element
+                const dayCard = document.createElement('div');
+                dayCard.className = `p-2 flex flex-col items-center justify-between rounded-xl shadow-md cursor-pointer transition-all duration-300 transform hover:scale-[1.02] ${
+                    isCompleted ? 'bg-completed-day text-white shadow-completed-shadow/50' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                }`;
+                dayCard.dataset.date = dayDateString;
+
+                // Day Number and Day Name
+                dayCard.innerHTML = `
+                    <div class="text-sm font-bold">Day ${dayNumber}</div>
+                    <div class="text-xs ${isCompleted ? 'text-white/80' : 'text-gray-500'}">${dayName}</div> <!-- Now shows Mon, Tue, etc. --><div class="mt-1 text-2xl">
+                        ${isCompleted ? '&#10003;' : '&#9633;'} <!-- Checkmark or empty box --></div>
+                `;
+
+                // Click handler to toggle completion
+                dayCard.addEventListener('click', () => {
+                    const newStatus = !isCompleted;
+                    updateDayCompletion(dayDateString, newStatus);
+                    // The onSnapshot listener will handle the re-render.
+                });
+
+                challengeGrid.appendChild(dayCard);
+            }
+
+            // Update Progress Bar
+            const progressPercentage = Math.round((completedCount / CHALLENGE_DAYS) * 100);
+            progressBar.style.width = `${progressPercentage}%`;
+            progressTextEl.textContent = `${progressPercentage}% (${completedCount}/${CHALLENGE_DAYS} days)`;
+        }
+
+        /**
+         * Sets up the Firestore listener for real-time updates.
+         */
+        function setupFirestoreListener() {
+            if (!userId) return;
+
+            const docRef = getChallengeDocRef();
+
+            // Set up a real-time listener
+            onSnapshot(docRef, (docSnapshot) => {
+                if (docSnapshot.exists()) {
+                    const data = docSnapshot.data();
+                    console.log("Challenge data received:", data);
+                    renderChallenge(data);
+                } else {
+                    console.log("No challenge found, showing setup.");
+                    setupContainer.classList.remove('hidden');
+                    challengeContainer.classList.add('hidden');
+                    statusEl.textContent = "Please set your challenge start date.";
+                    challengeTitleDisplay.textContent = "21-Day Challenge"; // Reset title on setup screen
+                }
+            }, (error) => {
+                console.error("Firestore listener error:", error);
+                statusEl.textContent = "Error connecting to database. Please check console.";
+            });
+        }
+
+        // --- Event Handlers ---
+
+        function updateEndDateDisplay() {
+            const startDateString = startDateInput.value;
+            if (startDateString) {
+                const startDate = new Date(startDateString);
+                const endDate = addDays(startDate, CHALLENGE_DAYS - 1);
+                endDateDisplay.innerHTML = `Challenge End Date: <span class="font-semibold">${formatDate(endDate)}</span>`;
+            } else {
+                endDateDisplay.textContent = `The challenge will run for ${CHALLENGE_DAYS} days.`;
+            }
+        }
+
+        startDateInput.addEventListener('change', updateEndDateDisplay);
+        window.addEventListener('load', updateEndDateDisplay); // Update on initial load if browser remembers value
+
+        startDateBtn.addEventListener('click', async () => {
+            const startDateString = startDateInput.value;
+            // Get the title from the input field
+            const challengeTitle = challengeTitleInput.value.trim() || '21-Day Challenge'; 
+            
+            if (!startDateString) {
+                statusEl.textContent = "Please select a valid start date!";
+                return;
+            }
+
+            try {
+                // Check if a challenge already exists before setting a new one
+                const docRef = getChallengeDocRef();
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    // This block is mainly for safety, onSnapshot should handle the display
+                    statusEl.textContent = "A challenge already exists. Press Reset to start a new one.";
+                    return;
+                }
+
+                // Pass the title to the creation function
+                const newChallengeData = createChallengeData(startDateString, challengeTitle); 
+                await saveChallengeConfig(newChallengeData);
+                // onSnapshot will handle the rendering
+            } catch (e) {
+                console.error("Failed to start challenge:", e);
+                statusEl.textContent = "Failed to start challenge due to an error.";
+            }
+        });
+
+        resetBtn.addEventListener('click', async () => {
+            if (confirm("Are you sure you want to reset and delete your current challenge progress?")) {
+                 try {
+                    const docRef = getChallengeDocRef();
+                    await deleteDoc(docRef);
+                    // onSnapshot will detect the deletion and revert to setup mode
+                    console.log("Challenge reset and data deleted.");
+                    startDateInput.value = '';
+                    updateEndDateDisplay();
+                } catch (e) {
+                    console.error("Failed to reset challenge:", e);
+                    statusEl.textContent = "Failed to reset challenge. See console for details.";
+                }
+            }
+        });
+
+        // Handle browser confirmation via custom modal logic instead of native alert/confirm
+        function confirm(message) {
+            return new Promise((resolve) => {
+                // Create minimal confirmation dialog
+                const modal = document.createElement('div');
+                modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50';
+                modal.innerHTML = `
+                    <div class="bg-white p-6 rounded-lg shadow-xl w-80">
+                        <p class="text-gray-700 mb-4">${message}</p>
+                        <div class="flex justify-end space-x-3">
+                            <button id="modal-cancel" class="py-1 px-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100">Cancel</button>
+                            <button id="modal-ok" class="py-1 px-3 bg-red-600 text-white rounded-lg hover:bg-red-700">OK</button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+
+                document.getElementById('modal-ok').onclick = () => {
+                    document.body.removeChild(modal);
+                    resolve(true);
+                };
+
+                document.getElementById('modal-cancel').onclick = () => {
+                    document.body.removeChild(modal);
+                    resolve(false);
+                };
+            });
+        }
+
+        // --- PWA: Manifest & Service Worker Registration ---
+
+        function registerPWA() {
+            // 1. PWA Icon SVG (Purple checkmark in a rounded square)
+            const iconSvg = `<svg width="512" height="512" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <rect width="100" height="100" rx="20" fill="#8B5CF6"/>
+                <polyline points="25,50 45,70 75,30" stroke="#ffffff" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>`;
+            const iconBase64 = btoa(iconSvg);
+            const iconDataUri = 'data:image/svg+xml;base64,' + iconBase64;
+            
+            // 2. Manifest JSON (Data URI)
+            const manifestJson = {
+                "name": "21-Day Challenge Tracker",
+                "short_name": "21DayTracker",
+                "description": "Track your personal 21-day habit challenge.",
+                "start_url": "./",
+                "display": "standalone",
+                "background_color": "#E5E7EB", // Light background for splash screen
+                "theme_color": "#8B5CF6", // Purple theme
+                "icons": [
+                    { "src": iconDataUri, "sizes": "192x192", "type": "image/svg+xml" },
+                    { "src": iconDataUri, "sizes": "512x512", "type": "image/svg+xml" },
+                    { "src": iconDataUri, "sizes": "512x512", "type": "image/svg+xml", "purpose": "maskable" }
+                ]
+            };
+            
+            const manifestBlob = new Blob([JSON.stringify(manifestJson)], { type: 'application/json' });
+            manifestLink.href = URL.createObjectURL(manifestBlob);
+
+            // 3. Service Worker Logic (Embedded)
+            if ('serviceWorker' in navigator) {
+                const swCode = `
+                    const CACHE_NAME = 'challenge-tracker-v1';
+                    // List of files to cache (just the main page and external dependencies we rely on)
+                    const urlsToCache = [
+                      './',
+                      'https://cdn.tailwindcss.com', 
+                      'https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap',
+                    ];
+
+                    self.addEventListener('install', (event) => {
+                      event.waitUntil(
+                        caches.open(CACHE_NAME).then((cache) => {
+                            console.log('SW: Opened cache and caching resources.');
+                            return cache.addAll(urlsToCache);
+                        }).catch(e => console.error('SW: Cache add failed', e))
+                      );
+                      self.skipWaiting();
+                    });
+
+                    self.addEventListener('fetch', (event) => {
+                      event.respondWith(
+                        caches.match(event.request).then((response) => {
+                            if (response) {
+                                return response; // Cache hit
+                            }
+                            // Important: Firebase scripts must be fetched from the network.
+                            return fetch(event.request); // Fallback to network
+                        })
+                      );
+                    });
+
+                    self.addEventListener('activate', (event) => {
+                        const cacheWhitelist = [CACHE_NAME];
+                        event.waitUntil(
+                            caches.keys().then(cacheNames => {
+                                return Promise.all(
+                                    cacheNames.map(cacheName => {
+                                        if (cacheWhitelist.indexOf(cacheName) === -1) {
+                                            return caches.delete(cacheName); // Clean up old caches
+                                        }
+                                    })
+                                );
+                            }).then(() => self.clients.claim())
+                        );
+                    });
+                `;
+
+                // Create a Blob from the SW code string and register it
+                const swBlob = new Blob([swCode], { type: 'application/javascript' });
+                const swUrl = URL.createObjectURL(swBlob);
+
+                navigator.serviceWorker.register(swUrl)
+                    .then(reg => {
+                        console.log('Service Worker registered with scope:', reg.scope);
+                        // If PWA succeeds but Firebase failed, update status to show PWA is ready
+                        if (!firebaseConfig) {
+                             statusEl.textContent += " (PWA Ready)";
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Service Worker registration failed:', error);
+                        // Removed status update to prevent confusing user with an unfixable environment error
+                    });
+            } else {
+                console.log('Service Workers are not supported in this browser.');
+            }
+        }
+
+
+        // --- Initialization ---
+
+        async function initApp() {
+            // 1. Register PWA features immediately (independent of Firebase)
+            registerPWA();
+
+            // 2. Handle Firebase Initialization
+            if (!firebaseConfig) {
+                statusEl.textContent = "Error: Firebase configuration is missing.";
+                return; // Stop data loading, but PWA setup continues above
+            }
+            
+            // Initializing message (this will be overwritten by a PWA error if one occurs)
+            statusEl.textContent = "Initializing app...";
+
+            try {
+                // Initialize Firebase
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                // Set Firestore logging to debug mode to aid in development/debugging
+                setLogLevel('debug');
+
+                // Set persistence to keep user signed in
+                await setPersistence(auth, browserLocalPersistence);
+
+                // Authenticate the user
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                    console.log("Signed in with custom token.");
+                } else {
+                    await signInAnonymously(auth);
+                    console.log("Signed in anonymously.");
+                }
+
+                // Auth state listener (Crucial for getting the userId)
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        statusEl.textContent = "Authentication successful. Loading challenge...";
+                        setupFirestoreListener();
+                    } else {
+                        // This should ideally not happen after signInWithCustomToken/signInAnonymously
+                        userId = null;
+                        statusEl.textContent = "Authentication failed. Cannot load data.";
+                    }
+                });
+                
+            } catch (error) {
+                console.error("Initialization Error:", error);
+                statusEl.textContent = `Initialization Failed: ${error.message}.`;
+            }
+        }
+
+        window.onload = initApp;
+
+    </script>
+</body>
+</html>
