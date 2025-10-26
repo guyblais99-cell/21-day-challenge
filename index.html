@@ -387,41 +387,41 @@
             const rawConfig = typeof __firebase_config !== 'undefined' ? __firebase_config : null;
             let config = null;
 
-            // Define a fallback config for environments that fail to inject the real config.
-            // This is non-functional but structurally valid, allowing initializeApp to proceed.
+            // Define a fallback config using an empty key, which sometimes allows the SDK to proceed.
+            // We also use random project IDs to avoid caching issues with "dummy-project".
             const FALLBACK_CONFIG = {
-                apiKey: "dummy-key",
+                apiKey: "", 
                 authDomain: "dummy.firebaseapp.com",
-                projectId: "dummy-project",
+                projectId: "dummy-project-" + Math.random().toString(36).substring(2, 9), 
                 storageBucket: "dummy.appspot.com",
                 messagingSenderId: "123456789012",
-                appId: "1:123456789012:web:abcdef0123456789012345"
+                appId: "1:123456789012:web:abcdef" + Math.random().toString(36).substring(2, 9)
             };
 
             if (!rawConfig) {
                 // Use fallback config if environment config is missing
                 config = FALLBACK_CONFIG;
-                statusEl.textContent = "Attempting anonymous sign-in with fallback configuration...";
+                statusEl.textContent = "Config unavailable. Attempting anonymous sign-in with silent mode...";
                 console.warn("Firebase config not found. Using fallback config for initialization.");
             } else {
                 try {
                     // Attempt to safely parse the configuration string
                     config = JSON.parse(rawConfig);
                 } catch (e) {
-                    statusEl.textContent = "Error: Could not parse Firebase configuration. Check console for details.";
+                    statusEl.textContent = "Error: Could not parse Firebase configuration. Using fallback.";
                     console.error("Failed to parse Firebase JSON string:", rawConfig, e);
-                    return;
+                    config = FALLBACK_CONFIG;
                 }
             }
             
-            // Final check on the parsed object (e.g., if parsing yielded an empty object)
+            // Final check on the parsed object
             if (!config || typeof config !== 'object' || Object.keys(config).length === 0) {
                  config = FALLBACK_CONFIG;
                  statusEl.textContent = "Firebase config parsed to empty object. Using fallback.";
             }
 
             try {
-                // Initialize Firebase with the safely parsed/fallback config
+                // Initialize Firebase with the safest available config
                 app = initializeApp(config);
                 db = getFirestore(app);
                 auth = getAuth(app);
@@ -432,8 +432,6 @@
                 await setPersistence(auth, browserLocalPersistence);
 
                 // Authenticate the user
-                // We prioritize the initialAuthToken, but if it's missing (which is common 
-                // when the config is also missing), we fall back to anonymous sign-in.
                 if (initialAuthToken) {
                     await signInWithCustomToken(auth, initialAuthToken);
                     console.log("Signed in with custom token.");
@@ -455,8 +453,11 @@
                 });
 
             } catch (error) {
+                // This catch handles errors during initializeApp, getAuth, or the sign-in process.
                 console.error("Initialization Error:", error);
-                statusEl.textContent = `Initialization Failed: ${error.message}.`;
+                statusEl.textContent = `Initialization Failed: ${error.message}. Please try refreshing the file.`;
+                setupContainer.classList.add('hidden'); // Hide setup if initialization fundamentally fails
+                challengeContainer.classList.add('hidden'); // Hide challenge if initialization fundamentally fails
             }
         }
 
