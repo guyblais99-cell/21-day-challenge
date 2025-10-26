@@ -3,11 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>21-Day Challenge Tracker</title>
-    
-    <!-- PWA Setup: Dynamically linked manifest (Data URI for single file compliance) -->
-    <link rel="manifest" id="manifest-link">
-    
+    <title>21-Day Workout Challenge Tracker</title>
     <!-- Load Tailwind CSS --><script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -85,14 +81,13 @@
         </div>
     </div>
 
-    <!-- Firebase Scripts and PWA Logic --><script type="module">
+    <!-- Firebase Scripts --><script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, getDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Global variables provided by the environment
+        // Global variables provided by the environment (accessed inside initApp)
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         let app;
@@ -118,7 +113,6 @@
         // New DOM references
         const challengeTitleInput = document.getElementById('challenge-title');
         const challengeTitleDisplay = document.getElementById('challenge-title-display');
-        const manifestLink = document.getElementById('manifest-link');
 
 
         // --- Utility Functions ---
@@ -328,7 +322,8 @@
         function updateEndDateDisplay() {
             const startDateString = startDateInput.value;
             if (startDateString) {
-                const startDate = new Date(startDateString);
+                const parts = startDateString.split('-');
+                const startDate = new Date(parts[0], parts[1] - 1, parts[2]); // Safe local date parsing
                 const endDate = addDays(startDate, CHALLENGE_DAYS - 1);
                 endDateDisplay.innerHTML = `Challenge End Date: <span class="font-semibold">${formatDate(endDate)}</span>`;
             } else {
@@ -386,6 +381,72 @@
             }
         });
 
+        // --- Initialization ---
+
+        async function initApp() {
+            const rawConfig = typeof __firebase_config !== 'undefined' ? __firebase_config : null;
+            let config = null;
+
+            if (!rawConfig) {
+                statusEl.textContent = "Error: Firebase configuration is missing or unavailable.";
+                console.error("Raw Firebase config variable is undefined or null.");
+                return;
+            }
+
+            try {
+                // Attempt to safely parse the configuration string
+                config = JSON.parse(rawConfig);
+            } catch (e) {
+                statusEl.textContent = "Error: Could not parse Firebase configuration. Check console for details.";
+                console.error("Failed to parse Firebase JSON string:", rawConfig, e);
+                return;
+            }
+            
+            // Final check on the parsed object
+            if (!config || typeof config !== 'object' || Object.keys(config).length === 0) {
+                 statusEl.textContent = "Error: Firebase configuration is invalid or empty.";
+                 console.error("Parsed Firebase config object is empty or invalid:", config);
+                 return;
+            }
+
+            try {
+                // Initialize Firebase with the safely parsed config
+                app = initializeApp(config);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                // Set Firestore logging to debug mode to aid in development/debugging
+                setLogLevel('debug');
+
+                // Set persistence to keep user signed in
+                await setPersistence(auth, browserLocalPersistence);
+
+                // Authenticate the user
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                    console.log("Signed in with custom token.");
+                } else {
+                    await signInAnonymously(auth);
+                    console.log("Signed in anonymously.");
+                }
+
+                // Auth state listener (Crucial for getting the userId)
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        statusEl.textContent = "Authentication successful. Loading challenge...";
+                        setupFirestoreListener();
+                    } else {
+                        userId = null;
+                        statusEl.textContent = "Authentication failed. Cannot load data.";
+                    }
+                });
+
+            } catch (error) {
+                console.error("Initialization Error:", error);
+                statusEl.textContent = `Initialization Failed: ${error.message}.`;
+            }
+        }
+
         // Handle browser confirmation via custom modal logic instead of native alert/confirm
         function confirm(message) {
             return new Promise((resolve) => {
@@ -415,160 +476,6 @@
             });
         }
 
-        // --- PWA: Manifest & Service Worker Registration ---
-
-        function registerPWA() {
-            // 1. PWA Icon SVG (Purple checkmark in a rounded square)
-            const iconSvg = `<svg width="512" height="512" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                <rect width="100" height="100" rx="20" fill="#8B5CF6"/>
-                <polyline points="25,50 45,70 75,30" stroke="#ffffff" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>`;
-            const iconBase64 = btoa(iconSvg);
-            const iconDataUri = 'data:image/svg+xml;base64,' + iconBase64;
-            
-            // 2. Manifest JSON (Data URI)
-            const manifestJson = {
-                "name": "21-Day Challenge Tracker",
-                "short_name": "21DayTracker",
-                "description": "Track your personal 21-day habit challenge.",
-                "start_url": "./",
-                "display": "standalone",
-                "background_color": "#E5E7EB", // Light background for splash screen
-                "theme_color": "#8B5CF6", // Purple theme
-                "icons": [
-                    { "src": iconDataUri, "sizes": "192x192", "type": "image/svg+xml" },
-                    { "src": iconDataUri, "sizes": "512x512", "type": "image/svg+xml" },
-                    { "src": iconDataUri, "sizes": "512x512", "type": "image/svg+xml", "purpose": "maskable" }
-                ]
-            };
-            
-            const manifestBlob = new Blob([JSON.stringify(manifestJson)], { type: 'application/json' });
-            manifestLink.href = URL.createObjectURL(manifestBlob);
-
-            // 3. Service Worker Logic (Embedded)
-            if ('serviceWorker' in navigator) {
-                const swCode = `
-                    const CACHE_NAME = 'challenge-tracker-v1';
-                    // List of files to cache (just the main page and external dependencies we rely on)
-                    const urlsToCache = [
-                      './',
-                      'https://cdn.tailwindcss.com', 
-                      'https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap',
-                    ];
-
-                    self.addEventListener('install', (event) => {
-                      event.waitUntil(
-                        caches.open(CACHE_NAME).then((cache) => {
-                            console.log('SW: Opened cache and caching resources.');
-                            return cache.addAll(urlsToCache);
-                        }).catch(e => console.error('SW: Cache add failed', e))
-                      );
-                      self.skipWaiting();
-                    });
-
-                    self.addEventListener('fetch', (event) => {
-                      event.respondWith(
-                        caches.match(event.request).then((response) => {
-                            if (response) {
-                                return response; // Cache hit
-                            }
-                            // Important: Firebase scripts must be fetched from the network.
-                            return fetch(event.request); // Fallback to network
-                        })
-                      );
-                    });
-
-                    self.addEventListener('activate', (event) => {
-                        const cacheWhitelist = [CACHE_NAME];
-                        event.waitUntil(
-                            caches.keys().then(cacheNames => {
-                                return Promise.all(
-                                    cacheNames.map(cacheName => {
-                                        if (cacheWhitelist.indexOf(cacheName) === -1) {
-                                            return caches.delete(cacheName); // Clean up old caches
-                                        }
-                                    })
-                                );
-                            }).then(() => self.clients.claim())
-                        );
-                    });
-                `;
-
-                // Create a Blob from the SW code string and register it
-                const swBlob = new Blob([swCode], { type: 'application/javascript' });
-                const swUrl = URL.createObjectURL(swBlob);
-
-                navigator.serviceWorker.register(swUrl)
-                    .then(reg => {
-                        console.log('Service Worker registered with scope:', reg.scope);
-                        // If PWA succeeds but Firebase failed, update status to show PWA is ready
-                        if (!firebaseConfig) {
-                             statusEl.textContent += " (PWA Ready)";
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Service Worker registration failed:', error);
-                        // Removed status update to prevent confusing user with an unfixable environment error
-                    });
-            } else {
-                console.log('Service Workers are not supported in this browser.');
-            }
-        }
-
-
-        // --- Initialization ---
-
-        async function initApp() {
-            // 1. Register PWA features immediately (independent of Firebase)
-            registerPWA();
-
-            // 2. Handle Firebase Initialization
-            if (!firebaseConfig) {
-                statusEl.textContent = "Error: Firebase configuration is missing.";
-                return; // Stop data loading, but PWA setup continues above
-            }
-            
-            // Initializing message (this will be overwritten by a PWA error if one occurs)
-            statusEl.textContent = "Initializing app...";
-
-            try {
-                // Initialize Firebase
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                // Set Firestore logging to debug mode to aid in development/debugging
-                setLogLevel('debug');
-
-                // Set persistence to keep user signed in
-                await setPersistence(auth, browserLocalPersistence);
-
-                // Authenticate the user
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                    console.log("Signed in with custom token.");
-                } else {
-                    await signInAnonymously(auth);
-                    console.log("Signed in anonymously.");
-                }
-
-                // Auth state listener (Crucial for getting the userId)
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        statusEl.textContent = "Authentication successful. Loading challenge...";
-                        setupFirestoreListener();
-                    } else {
-                        // This should ideally not happen after signInWithCustomToken/signInAnonymously
-                        userId = null;
-                        statusEl.textContent = "Authentication failed. Cannot load data.";
-                    }
-                });
-                
-            } catch (error) {
-                console.error("Initialization Error:", error);
-                statusEl.textContent = `Initialization Failed: ${error.message}.`;
-            }
-        }
 
         window.onload = initApp;
 
