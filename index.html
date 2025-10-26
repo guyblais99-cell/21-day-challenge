@@ -30,12 +30,12 @@
 </head>
 <body class="bg-gradient-to-br from-indigo-100 to-purple-100 min-h-screen flex items-center justify-center p-4">
     <div id="app" class="w-full max-w-lg bg-white shadow-2xl rounded-xl p-6 md:p-8">
-        <!-- New ID for Dynamic Title Display -->
+        <!-- Dynamic Title Display -->
         <h1 id="challenge-title-display" class="text-3xl font-extrabold text-gray-900 mb-2 text-center">21-Day Challenge</h1>
         <p class="text-center text-sm text-secondary-purple font-medium mb-6">Track your journey to a new habit!</p>
 
         <!-- Loading/Error Indicator --><div id="status" class="text-center mb-4 text-sm font-medium text-gray-500">
-            Initializing app...
+            Loading local challenge data...
         </div>
 
         <!-- Setup Form (Hidden by default) --><div id="setup-container" class="space-y-4 p-4 border-2 border-dashed border-primary-purple rounded-lg hidden">
@@ -81,22 +81,10 @@
         </div>
     </div>
 
-    <!-- Firebase Scripts --><script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, getDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Global variables provided by the environment (accessed inside initApp)
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        let app;
-        let db;
-        let auth;
-        let userId = null;
+    <!-- Application Logic (Now using localStorage) --><script>
+        
         const CHALLENGE_DAYS = 21;
-        const COLLECTION_PATH = 'challenge_tracker';
-        const DOCUMENT_ID = 'data';
+        const LOCAL_STORAGE_KEY = '21DayChallengeData';
 
         const statusEl = document.getElementById('status');
         const setupContainer = document.getElementById('setup-container');
@@ -109,8 +97,6 @@
         const challengeDatesEl = document.getElementById('challenge-dates');
         const progressBar = document.getElementById('progress-bar');
         const progressTextEl = document.getElementById('progress-text');
-        
-        // New DOM references
         const challengeTitleInput = document.getElementById('challenge-title');
         const challengeTitleDisplay = document.getElementById('challenge-title-display');
 
@@ -160,14 +146,13 @@
          * @returns {{title: string, startDate: string, endDate: string, completedDays: Object<string, boolean>}}
          */
         function createChallengeData(startDateString, title, existingCompletedDays = {}) {
-            // FIX: Parse date parts to create a local date, avoiding UTC timezone shift issue
+            // Parse date parts to create a local date
             const parts = startDateString.split('-');
-            // new Date(year, monthIndex, day) - Month is 0-indexed in JS Date constructor
             const startDate = new Date(parts[0], parts[1] - 1, parts[2]); 
             
             const endDate = addDays(startDate, CHALLENGE_DAYS - 1);
             const challengeData = {
-                title: title, // Store the title
+                title: title,
                 startDate: startDateString,
                 endDate: formatDate(endDate),
                 completedDays: {}
@@ -183,30 +168,37 @@
             return challengeData;
         }
 
-        // --- Firebase/Firestore Logic ---
+        // --- Local Storage Logic ---
 
         /**
-         * Gets the Firestore document reference for the private challenge data.
-         * @returns {import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js").DocumentReference}
+         * Loads challenge data from localStorage.
+         * @returns {Object|null}
          */
-        function getChallengeDocRef() {
-            if (!db || !userId) throw new Error("Database or User not initialized.");
-            // Private data path: /artifacts/{appId}/users/{userId}/{collectionName}/{documentId}
-            return doc(db, 'artifacts', appId, 'users', userId, COLLECTION_PATH, DOCUMENT_ID);
+        function loadLocalData() {
+            const storedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+            if (storedData) {
+                try {
+                    return JSON.parse(storedData);
+                } catch (e) {
+                    console.error("Error parsing stored data:", e);
+                    return null;
+                }
+            }
+            return null;
         }
-
+        
         /**
-         * Saves the new challenge configuration to Firestore.
+         * Saves challenge data to localStorage and triggers a UI update.
          * @param {Object} data - The full challenge data object
          */
-        async function saveChallengeConfig(data) {
+        function saveLocalData(data) {
             try {
-                const docRef = getChallengeDocRef();
-                await setDoc(docRef, data);
-                console.log("Challenge configuration saved successfully.");
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
+                console.log("Challenge configuration saved locally.");
+                checkAndRender(); // Re-render the UI immediately
             } catch (error) {
                 console.error("Error saving challenge configuration:", error);
-                statusEl.textContent = "Error saving data. See console for details.";
+                statusEl.textContent = "Error saving data locally. Check browser permissions.";
             }
         }
 
@@ -217,17 +209,27 @@
          */
         async function updateDayCompletion(dateString, isCompleted) {
             try {
-                const docRef = getChallengeDocRef();
-                // Firestore update needs to specify the nested path
-                await updateDoc(docRef, {
-                    [`completedDays.${dateString}`]: isCompleted
-                });
+                const storedData = loadLocalData(); 
+                if (!storedData) {
+                    console.warn("Attempted to update day but no stored data found.");
+                    return;
+                }
+
+                // Make the modification
+                storedData.completedDays[dateString] = isCompleted;
+
+                // Save and re-render
+                saveLocalData(storedData); 
+
                 console.log(`Day ${dateString} updated to ${isCompleted}`);
             } catch (error) {
                 console.error("Error updating day completion:", error);
-                statusEl.textContent = "Error updating completion. See console for details.";
+                statusEl.textContent = "Error updating completion locally.";
             }
         }
+
+
+        // --- Rendering and App State ---
 
         /**
          * Renders the challenge grid based on the provided data.
@@ -243,7 +245,7 @@
             challengeDatesEl.textContent = `${startDate} - ${endDate}`;
             challengeContainer.classList.remove('hidden');
             setupContainer.classList.add('hidden');
-            statusEl.textContent = "Challenge is active!";
+            statusEl.textContent = "Challenge is active and saved locally!";
 
             // Use the safe date parsing here for rendering too
             const parts = startDate.split('-');
@@ -270,15 +272,16 @@
                 // Day Number and Day Name
                 dayCard.innerHTML = `
                     <div class="text-sm font-bold">Day ${dayNumber}</div>
-                    <div class="text-xs ${isCompleted ? 'text-white/80' : 'text-gray-500'}">${dayName}</div> <!-- Now shows Mon, Tue, etc. --><div class="mt-1 text-2xl">
-                        ${isCompleted ? '&#10003;' : '&#9633;'} <!-- Checkmark or empty box --></div>
+                    <div class="text-xs ${isCompleted ? 'text-white/80' : 'text-gray-500'}">${dayName}</div>
+                    <div class="mt-1 text-2xl">
+                        ${isCompleted ? '&#10003;' : '&#9633;'}
+                    </div>
                 `;
 
                 // Click handler to toggle completion
                 dayCard.addEventListener('click', () => {
                     const newStatus = !isCompleted;
                     updateDayCompletion(dayDateString, newStatus);
-                    // The onSnapshot listener will handle the re-render.
                 });
 
                 challengeGrid.appendChild(dayCard);
@@ -289,33 +292,22 @@
             progressBar.style.width = `${progressPercentage}%`;
             progressTextEl.textContent = `${progressPercentage}% (${completedCount}/${CHALLENGE_DAYS} days)`;
         }
-
+        
         /**
-         * Sets up the Firestore listener for real-time updates.
+         * Checks for local data and renders the correct view (Challenge or Setup).
          */
-        function setupFirestoreListener() {
-            if (!userId) return;
-
-            const docRef = getChallengeDocRef();
-
-            // Set up a real-time listener
-            onSnapshot(docRef, (docSnapshot) => {
-                if (docSnapshot.exists()) {
-                    const data = docSnapshot.data();
-                    console.log("Challenge data received:", data);
-                    renderChallenge(data);
-                } else {
-                    console.log("No challenge found, showing setup.");
-                    setupContainer.classList.remove('hidden');
-                    challengeContainer.classList.add('hidden');
-                    statusEl.textContent = "Please set your challenge start date.";
-                    challengeTitleDisplay.textContent = "21-Day Challenge"; // Reset title on setup screen
-                }
-            }, (error) => {
-                console.error("Firestore listener error:", error);
-                statusEl.textContent = "Error connecting to database. Please check console.";
-            });
+        function checkAndRender() {
+            const data = loadLocalData();
+            if (data) {
+                renderChallenge(data);
+            } else {
+                setupContainer.classList.remove('hidden');
+                challengeContainer.classList.add('hidden');
+                statusEl.textContent = "Please set your challenge start date.";
+                challengeTitleDisplay.textContent = "21-Day Challenge"; // Reset title on setup screen
+            }
         }
+
 
         // --- Event Handlers ---
 
@@ -332,11 +324,10 @@
         }
 
         startDateInput.addEventListener('change', updateEndDateDisplay);
-        window.addEventListener('load', updateEndDateDisplay); // Update on initial load if browser remembers value
+        window.addEventListener('load', updateEndDateDisplay);
 
-        startDateBtn.addEventListener('click', async () => {
+        startDateBtn.addEventListener('click', () => {
             const startDateString = startDateInput.value;
-            // Get the title from the input field
             const challengeTitle = challengeTitleInput.value.trim() || '21-Day Challenge'; 
             
             if (!startDateString) {
@@ -344,122 +335,26 @@
                 return;
             }
 
-            try {
-                // Check if a challenge already exists before setting a new one
-                const docRef = getChallengeDocRef();
-                const docSnap = await getDoc(docRef);
-
-                if (docSnap.exists()) {
-                    // This block is mainly for safety, onSnapshot should handle the display
-                    statusEl.textContent = "A challenge already exists. Press Reset to start a new one.";
-                    return;
-                }
-
-                // Pass the title to the creation function
-                const newChallengeData = createChallengeData(startDateString, challengeTitle); 
-                await saveChallengeConfig(newChallengeData);
-                // onSnapshot will handle the rendering
-            } catch (e) {
-                console.error("Failed to start challenge:", e);
-                statusEl.textContent = "Failed to start challenge due to an error.";
-            }
+            // Create new data and save it, which triggers rendering
+            const newChallengeData = createChallengeData(startDateString, challengeTitle); 
+            saveLocalData(newChallengeData);
         });
 
         resetBtn.addEventListener('click', async () => {
-            if (confirm("Are you sure you want to reset and delete your current challenge progress?")) {
+            if (await confirm("Are you sure you want to reset and delete your current challenge progress? This action cannot be undone.")) {
                  try {
-                    const docRef = getChallengeDocRef();
-                    await deleteDoc(docRef);
-                    // onSnapshot will detect the deletion and revert to setup mode
-                    console.log("Challenge reset and data deleted.");
+                    localStorage.removeItem(LOCAL_STORAGE_KEY);
+                    statusEl.textContent = "Challenge reset. Please set your challenge start date.";
+                    console.log("Challenge reset and local data deleted.");
                     startDateInput.value = '';
                     updateEndDateDisplay();
+                    checkAndRender(); // Revert to setup screen
                 } catch (e) {
                     console.error("Failed to reset challenge:", e);
-                    statusEl.textContent = "Failed to reset challenge. See console for details.";
+                    statusEl.textContent = "Failed to reset challenge.";
                 }
             }
         });
-
-        // --- Initialization ---
-
-        async function initApp() {
-            const rawConfig = typeof __firebase_config !== 'undefined' ? __firebase_config : null;
-            let config = null;
-
-            // Define a fallback config using an empty key, which sometimes allows the SDK to proceed.
-            // We also use random project IDs to avoid caching issues with "dummy-project".
-            const FALLBACK_CONFIG = {
-                apiKey: "", 
-                authDomain: "dummy.firebaseapp.com",
-                projectId: "dummy-project-" + Math.random().toString(36).substring(2, 9), 
-                storageBucket: "dummy.appspot.com",
-                messagingSenderId: "123456789012",
-                appId: "1:123456789012:web:abcdef" + Math.random().toString(36).substring(2, 9)
-            };
-
-            if (!rawConfig) {
-                // Use fallback config if environment config is missing
-                config = FALLBACK_CONFIG;
-                statusEl.textContent = "Config unavailable. Attempting anonymous sign-in with silent mode...";
-                console.warn("Firebase config not found. Using fallback config for initialization.");
-            } else {
-                try {
-                    // Attempt to safely parse the configuration string
-                    config = JSON.parse(rawConfig);
-                } catch (e) {
-                    statusEl.textContent = "Error: Could not parse Firebase configuration. Using fallback.";
-                    console.error("Failed to parse Firebase JSON string:", rawConfig, e);
-                    config = FALLBACK_CONFIG;
-                }
-            }
-            
-            // Final check on the parsed object
-            if (!config || typeof config !== 'object' || Object.keys(config).length === 0) {
-                 config = FALLBACK_CONFIG;
-                 statusEl.textContent = "Firebase config parsed to empty object. Using fallback.";
-            }
-
-            try {
-                // Initialize Firebase with the safest available config
-                app = initializeApp(config);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                // Set Firestore logging to debug mode to aid in development/debugging
-                setLogLevel('debug');
-
-                // Set persistence to keep user signed in
-                await setPersistence(auth, browserLocalPersistence);
-
-                // Authenticate the user
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                    console.log("Signed in with custom token.");
-                } else {
-                    await signInAnonymously(auth);
-                    console.log("Signed in anonymously.");
-                }
-
-                // Auth state listener (Crucial for getting the userId)
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        statusEl.textContent = "Authentication successful. Loading challenge...";
-                        setupFirestoreListener();
-                    } else {
-                        userId = null;
-                        statusEl.textContent = "Authentication failed. Cannot load data.";
-                    }
-                });
-
-            } catch (error) {
-                // This catch handles errors during initializeApp, getAuth, or the sign-in process.
-                console.error("Initialization Error:", error);
-                statusEl.textContent = `Initialization Failed: ${error.message}. Please try refreshing the file.`;
-                setupContainer.classList.add('hidden'); // Hide setup if initialization fundamentally fails
-                challengeContainer.classList.add('hidden'); // Hide challenge if initialization fundamentally fails
-            }
-        }
 
         // Handle browser confirmation via custom modal logic instead of native alert/confirm
         function confirm(message) {
@@ -490,8 +385,9 @@
             });
         }
 
+        // --- Initialization ---
 
-        window.onload = initApp;
+        window.onload = checkAndRender;
 
     </script>
 </body>
