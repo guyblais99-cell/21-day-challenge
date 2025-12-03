@@ -44,7 +44,7 @@
         }
     </style>
 </head>
-<body class="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 min-h-screen p-4 md:p-8 font-sans text-gray-800 pb-20 select-none">
+<body class="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 min-h-screen p-4 md:p-8 font-sans text-gray-800 pb-24 select-none">
 
     <div id="app" class="max-w-2xl mx-auto">
         
@@ -147,13 +147,20 @@
                 
                 <div id="challenge-grid" class="grid grid-cols-5 md:grid-cols-7 gap-2">
                     </div>
+
+                <div class="mt-6 pt-6 border-t border-gray-200">
+                    <button id="calendar-sync-btn" class="w-full py-3 px-4 bg-indigo-50 text-indigo-600 font-bold rounded-xl border border-indigo-200 hover:bg-indigo-100 transition flex items-center justify-center gap-2">
+                        <span>📅 Add Schedule to Phone Calendar</span>
+                    </button>
+                    <p class="text-xs text-center text-gray-400 mt-2">This will add "Workout Day" to your phone's native calendar so you can see it on your lock screen.</p>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
         const PLAN_LENGTH = 30;
-        const LOCAL_STORAGE_KEY = 'WorkoutPlanner_Ultimate_v4_Fixed';
+        const LOCAL_STORAGE_KEY = 'WorkoutPlanner_Ultimate_v5_Calendar';
 
         const setupContainer = document.getElementById('setup-container');
         const challengeContainer = document.getElementById('challenge-container');
@@ -170,10 +177,9 @@
         
         const streakCountEl = document.getElementById('streak-count');
         const progressPercentEl = document.getElementById('progress-percent');
+        const calendarSyncBtn = document.getElementById('calendar-sync-btn');
 
-        // --- NEW SAFE DATE HANDLERS (Timezone Proof) ---
-        
-        // 1. Convert Date Object to "YYYY-MM-DD" using LOCAL time
+        // --- SAFE DATE HANDLERS ---
         function formatDateLocal(date) {
             const year = date.getFullYear();
             const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -181,13 +187,11 @@
             return `${year}-${month}-${day}`;
         }
 
-        // 2. Parse "YYYY-MM-DD" string into a Date Object set to LOCAL midnight
         function parseDateLocal(dateStr) {
             const [y, m, d] = dateStr.split('-').map(Number);
             return new Date(y, m - 1, d);
         }
 
-        // 3. Add days to a Date object safely
         function addDays(date, days) {
             const result = new Date(date);
             result.setDate(result.getDate() + days);
@@ -195,17 +199,14 @@
         }
 
         // --- CORE LOGIC ---
-
         function isWorkoutDay(startDateStr, currentDayStr, frequency) {
             const start = parseDateLocal(startDateStr);
             const current = parseDateLocal(currentDayStr);
-            
-            // Calculate difference in days
             const diffTime = Math.round((current - start) / (1000 * 60 * 60 * 24));
-            const dayOfWeek = current.getDay(); // 0=Sun, 1=Mon
+            const dayOfWeek = current.getDay(); 
 
-            if (diffTime < 0) return false; // Date is before start date
-            if (diffTime === 0) return true; // Start Date is ALWAYS a workout day
+            if (diffTime < 0) return false; 
+            if (diffTime === 0) return true; // Always start on workout day
 
             switch (frequency) {
                 case 'every-day': return true;
@@ -218,47 +219,78 @@
 
         function calculateStreak(data) {
             let streak = 0;
-            const today = new Date(); // Local now
+            const today = new Date();
             const start = parseDateLocal(data.startDate);
 
-            // Loop backwards from today
             for (let i = 0; i < 365; i++) {
                 const checkDate = new Date(today);
-                checkDate.setDate(today.getDate() - i); // Go back i days
+                checkDate.setDate(today.getDate() - i); 
                 
-                // Stop if we went before the start date
-                // We compare timestamps to be safe
                 if (checkDate.setHours(0,0,0,0) < start.getTime()) break;
 
                 const checkString = formatDateLocal(checkDate);
                 const scheduled = isWorkoutDay(data.startDate, checkString, data.frequency);
                 const completed = data.completedDays[checkString];
 
-                // Logic for TODAY (i=0)
                 if (i === 0) {
                     if (completed) streak++;
-                    continue; // Continue to check yesterday
+                    continue; 
                 }
 
-                // Logic for PAST DAYS
                 if (scheduled) {
-                    if (completed) {
-                        streak++;
-                    } else {
-                        // If it was a workout day and we missed it, streak ends.
-                        break;
-                    }
+                    if (completed) streak++;
+                    else break;
                 }
-                // If it was a Rest Day, we just ignore it and keep the streak alive
             }
             return streak;
+        }
+
+        // --- NEW CALENDAR EXPORT LOGIC ---
+        function generateICS(data) {
+            let icsContent = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//PowerPlanner//Workout//EN\n";
+            const startObj = parseDateLocal(data.startDate);
+
+            for(let i=0; i < PLAN_LENGTH; i++) {
+                const d = addDays(startObj, i);
+                const dateStr = formatDateLocal(d);
+                
+                if (isWorkoutDay(data.startDate, dateStr, data.frequency)) {
+                    // Format date for ICS (YYYYMMDD)
+                    const icsDate = dateStr.replace(/-/g, '');
+                    
+                    icsContent += "BEGIN:VEVENT\n";
+                    icsContent += `DTSTART;VALUE=DATE:${icsDate}\n`;
+                    icsContent += `DTEND;VALUE=DATE:${icsDate}\n`; // All day event
+                    icsContent += `SUMMARY:🏋️ ${data.title} Workout\n`;
+                    icsContent += "DESCRIPTION:Time to crush your workout goals!\n";
+                    icsContent += "END:VEVENT\n";
+                }
+            }
+            icsContent += "END:VCALENDAR";
+            return icsContent;
+        }
+
+        function downloadCalendar() {
+            const data = loadData();
+            if(!data) return;
+
+            const icsData = generateICS(data);
+            const blob = new Blob([icsData], { type: 'text/calendar' });
+            const url = window.URL.createObjectURL(blob);
+            
+            // Create invisible link to trigger download
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'workout_schedule.ics');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         function createPlan() {
             const title = titleInput.value || "My Plan";
             const startStr = startDateInput.value;
             const freq = frequencySelect.value;
-            
             if(!startStr) { alert("Please pick a start date!"); return; }
 
             const data = { title, startDate: startStr, frequency: freq, completedDays: {} };
@@ -267,7 +299,6 @@
         }
 
         function saveData(data) { localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data)); }
-        
         function loadData() { 
             const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
             return raw ? JSON.parse(raw) : null; 
@@ -275,7 +306,7 @@
 
         function renderWidget(data) {
             const today = new Date();
-            const todayStr = formatDateLocal(today); // Use safe local formatter
+            const todayStr = formatDateLocal(today);
             const isScheduled = isWorkoutDay(data.startDate, todayStr, data.frequency);
             const isDone = data.completedDays[todayStr];
 
@@ -321,26 +352,22 @@
                 const isScheduled = isWorkoutDay(data.startDate, dateStr, data.frequency);
                 const isDone = data.completedDays[dateStr];
                 
-                // Compare strings to avoid time checking issues
                 const isToday = (dateStr === todayStr);
                 const isPast = (d < new Date().setHours(0,0,0,0));
 
                 if (isScheduled && (isPast || isToday)) totalWorkoutDaysSoFar++;
                 if (isScheduled && isDone) completedCount++;
 
-                // Visuals
                 const card = document.createElement('div');
                 let bgClass = isScheduled 
                     ? (isDone ? "bg-indigo-600 text-white shadow-indigo-300" : "bg-white text-gray-800 border-gray-200") 
                     : "bg-gray-100 text-gray-300 border-transparent";
                 
-                // Highlight Today
                 if (isScheduled && !isDone && isToday) bgClass = "bg-orange-100 text-orange-800 border-orange-200 ring-2 ring-orange-400";
 
                 card.className = `flex flex-col items-center justify-center p-2 rounded-xl border-2 transition-all cursor-pointer relative h-20 ${bgClass}`;
                 
                 const dayName = d.toLocaleDateString('en-US', { weekday: 'narrow' });
-                
                 const checkMarkHTML = isDone 
                     ? `<div class="absolute inset-0 flex items-center justify-center rounded-xl bg-indigo-600/10">
                          <span class="text-4xl font-black text-white drop-shadow-md">✓</span>
@@ -388,6 +415,7 @@
         document.getElementById('reset-btn').addEventListener('click', () => {
             if(confirm("Delete current plan?")) { localStorage.removeItem(LOCAL_STORAGE_KEY); renderApp(); }
         });
+        calendarSyncBtn.addEventListener('click', downloadCalendar);
 
         startDateInput.value = formatDateLocal(new Date());
 
