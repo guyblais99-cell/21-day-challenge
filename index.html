@@ -2,9 +2,18 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>21-Day Workout Challenge Tracker</title>
-    <!-- Load Tailwind CSS --><script src="https://cdn.tailwindcss.com"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Power Planner</title>
+    
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#6366f1">
+    
+    <link rel="apple-touch-icon" href="https://img.icons8.com/color/480/dumbbell.png">
+    <link rel="icon" type="image/png" href="https://img.icons8.com/color/96/dumbbell.png">
+
+    <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -12,383 +21,377 @@
                     fontFamily: {
                         sans: ['Inter', 'sans-serif'],
                     },
-                    colors: {
-                        // Define a custom purple palette
-                        'primary-purple': '#8B5CF6', // A vibrant purple
-                        'primary-purple-dark': '#7C3AED', // Slightly darker for hover
-                        'secondary-purple': '#A78BFA', // Lighter purple for accents
-                        'completed-day': '#8B5CF6', // The new completed color
-                        'completed-shadow': '#a78bfa', // Shadow for completed days
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'bounce-slow': 'bounce 2s infinite',
+                        'fire': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
                     }
                 }
             }
         }
     </script>
-    <!-- Use Inter font --><style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;400;700;900&display=swap');
+        
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
     </style>
 </head>
-<body class="bg-gradient-to-br from-indigo-100 to-purple-100 min-h-screen flex items-center justify-center p-4">
-    <div id="app" class="w-full max-w-lg bg-white shadow-2xl rounded-xl p-6 md:p-8">
-        <!-- Dynamic Title Display -->
-        <h1 id="challenge-title-display" class="text-3xl font-extrabold text-gray-900 mb-2 text-center">21-Day Challenge</h1>
-        <p class="text-center text-sm text-secondary-purple font-medium mb-6">Track your journey to a new habit!</p>
+<body class="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 min-h-screen p-4 md:p-8 font-sans text-gray-800 pb-20 select-none">
 
-        <!-- Loading/Error Indicator --><div id="status" class="text-center mb-4 text-sm font-medium text-gray-500">
-            Loading local challenge data...
-        </div>
-
-        <!-- Setup Form (Hidden by default) --><div id="setup-container" class="space-y-4 p-4 border-2 border-dashed border-primary-purple rounded-lg hidden">
-            <h2 class="text-xl font-semibold text-gray-800">Challenge Setup</h2>
-            
-            <!-- New Challenge Title Input -->
-            <div class="space-y-1">
-                <label for="challenge-title" class="block text-sm font-medium text-gray-700">Name Your Challenge (e.g., "Daily Running"):</label>
-                <input type="text" id="challenge-title" value="21-Day Challenge" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-primary-purple focus:border-primary-purple">
+    <div id="app" class="max-w-2xl mx-auto">
+        
+        <header class="flex justify-between items-center mb-6 text-white">
+            <div>
+                <h1 class="text-3xl font-black tracking-tight italic uppercase">Power Planner</h1>
+                <p class="text-indigo-100 text-xs font-light opacity-80">Built for Consistency</p>
             </div>
-
-            <div class="space-y-1">
-                <label for="start-date" class="block text-sm font-medium text-gray-700">Select Challenge Start Date:</label>
-                <input type="date" id="start-date" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-primary-purple focus:border-primary-purple">
-            </div>
-            <div id="end-date-display" class="text-sm text-gray-600">
-                The challenge will run for 21 days.
-            </div>
-            <button id="start-challenge-btn"
-                class="w-full py-2 px-4 bg-primary-purple text-white font-semibold rounded-lg shadow-md hover:bg-primary-purple-dark transition duration-150">
-                Start Challenge
+            <button onclick="alert('To install: Tap your browser menu (⋮) and select \'Add to Home Screen\'')" class="text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full backdrop-blur-sm transition">
+                📲 Install App
             </button>
-        </div>
+        </header>
 
-        <!-- Challenge Grid (Hidden by default) --><div id="challenge-container" class="hidden">
-            <div class="flex flex-col md:flex-row justify-between items-center mb-4 p-3 bg-purple-50 rounded-lg">
-                <div class="text-sm font-medium text-gray-700 mb-2 md:mb-0">
-                    Challenge Dates: <span id="challenge-dates" class="font-bold text-primary-purple"></span>
+        <div id="setup-container" class="hidden glass rounded-3xl shadow-2xl p-6 md:p-8 transform transition-all animate-fade-in">
+            <div class="text-center mb-6">
+                <div class="text-5xl mb-2">🏋️</div>
+                <h2 class="text-2xl font-bold text-gray-900">New Routine</h2>
+                <p class="text-gray-500 text-sm">Define your commitment.</p>
+            </div>
+            
+            <div class="space-y-5">
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">Plan Name</label>
+                    <input type="text" id="challenge-title" value="My Fitness Journey" 
+                        class="w-full p-4 bg-white border border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-lg font-bold outline-none transition-all" 
+                        placeholder="e.g. Summer Shred">
                 </div>
-                <button id="reset-challenge-btn"
-                    class="text-xs py-1 px-3 bg-red-100 text-red-600 font-medium rounded-full hover:bg-red-200 transition duration-150">
-                    Reset Challenge
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">Start Date</label>
+                    <input type="date" id="start-date" 
+                        class="w-full p-4 bg-white border border-gray-200 rounded-xl focus:border-indigo-500 text-lg outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">Frequency</label>
+                    <div class="relative">
+                        <select id="frequency-select" class="w-full p-4 bg-white border border-gray-200 rounded-xl focus:border-indigo-500 text-lg outline-none appearance-none font-medium">
+                            <option value="every-day">🔥 Every Day (Beast Mode)</option>
+                            <option value="every-other">⚖️ Every Other Day</option>
+                            <option value="weekdays">💼 Weekdays Only (Mon-Fri)</option>
+                            <option value="weekends">☀️ Weekends Only (Sat-Sun)</option>
+                        </select>
+                        <div class="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-gray-400">▼</div>
+                    </div>
+                </div>
+
+                <button id="start-challenge-btn"
+                    class="w-full py-4 mt-2 bg-gray-900 hover:bg-black text-white text-lg font-bold rounded-xl shadow-xl transform active:scale-95 transition-all duration-200">
+                    Create Plan 🚀
                 </button>
             </div>
-            <div id="challenge-grid" class="grid grid-cols-7 gap-3">
-                <!-- Days will be generated here --></div>
-            <div id="progress-bar-container" class="mt-6">
-                <p class="text-sm font-medium text-gray-700 mb-1">Progress: <span id="progress-text">0%</span></p>
-                <div class="w-full bg-gray-200 rounded-full h-2.5">
-                    <div id="progress-bar" class="bg-primary-purple h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+        </div>
+
+        <div id="challenge-container" class="hidden space-y-5">
+            
+            <div id="today-widget" class="relative overflow-hidden rounded-3xl shadow-2xl p-6 md:p-8 text-white transition-all duration-500 group">
+                <div class="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+                
+                <div class="relative z-10 flex flex-col items-center text-center">
+                    <div class="uppercase tracking-widest text-[10px] font-bold bg-black/20 px-3 py-1 rounded-full mb-3 backdrop-blur-md">
+                        Today's Status
+                    </div>
+                    
+                    <div id="widget-icon" class="text-6xl md:text-7xl mb-2 drop-shadow-md transition-transform duration-300 group-hover:scale-110">💪</div>
+                    <h2 id="widget-title" class="text-4xl md:text-5xl font-black uppercase leading-none mb-1 drop-shadow-sm">GO TIME</h2>
+                    <p id="widget-subtitle" class="text-lg md:text-xl font-medium opacity-90 mb-6">Upper Body Focus</p>
+                    
+                    <button id="mark-today-btn" class="w-full md:w-auto px-8 py-3 bg-white text-gray-900 font-bold rounded-xl shadow-lg hover:bg-gray-50 active:scale-95 transition-all flex items-center justify-center gap-2">
+                        <span>Complete Workout</span>
+                    </button>
                 </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div class="glass rounded-2xl p-4 flex flex-col items-center justify-center shadow-lg border-b-4 border-orange-500">
+                    <div class="text-3xl font-black text-orange-500 flex items-center gap-1">
+                        <span id="streak-count">0</span>
+                        <span class="text-2xl animate-fire">🔥</span>
+                    </div>
+                    <div class="text-[10px] text-gray-500 uppercase font-bold tracking-widest">Current Streak</div>
+                </div>
+
+                <div class="glass rounded-2xl p-4 flex flex-col items-center justify-center shadow-lg border-b-4 border-indigo-500">
+                    <div class="text-3xl font-black text-indigo-600" id="progress-percent">0%</div>
+                    <div class="text-[10px] text-gray-500 uppercase font-bold tracking-widest">Consistency</div>
+                </div>
+            </div>
+
+            <div class="glass rounded-3xl p-5 shadow-xl">
+                <div class="flex justify-between items-end mb-4 px-1">
+                    <div>
+                        <h3 id="display-title" class="text-lg font-bold text-gray-800 leading-tight">My Plan</h3>
+                        <p class="text-[10px] text-gray-400 font-medium uppercase tracking-wide">30 Day Cycle</p>
+                    </div>
+                    <button id="reset-btn" class="text-[10px] text-red-400 hover:text-red-600 font-bold uppercase tracking-wider border border-red-100 px-3 py-1 rounded-full hover:bg-red-50 transition">
+                        Restart
+                    </button>
+                </div>
+                
+                <div id="challenge-grid" class="grid grid-cols-5 md:grid-cols-7 gap-2">
+                    </div>
             </div>
         </div>
     </div>
 
-    <!-- Application Logic (Now using localStorage) --><script>
-        
-        const CHALLENGE_DAYS = 21;
-        const LOCAL_STORAGE_KEY = '21DayChallengeData';
+    <script>
+        const PLAN_LENGTH = 30;
+        const LOCAL_STORAGE_KEY = 'WorkoutPlanner_Ultimate_v4_Fixed';
 
-        const statusEl = document.getElementById('status');
         const setupContainer = document.getElementById('setup-container');
         const challengeContainer = document.getElementById('challenge-container');
-        const challengeGrid = document.getElementById('challenge-grid');
         const startDateInput = document.getElementById('start-date');
-        const endDateDisplay = document.getElementById('end-date-display');
-        const startDateBtn = document.getElementById('start-challenge-btn');
-        const resetBtn = document.getElementById('reset-challenge-btn');
-        const challengeDatesEl = document.getElementById('challenge-dates');
-        const progressBar = document.getElementById('progress-bar');
-        const progressTextEl = document.getElementById('progress-text');
-        const challengeTitleInput = document.getElementById('challenge-title');
-        const challengeTitleDisplay = document.getElementById('challenge-title-display');
+        const titleInput = document.getElementById('challenge-title');
+        const frequencySelect = document.getElementById('frequency-select');
+        const grid = document.getElementById('challenge-grid');
+        
+        const widget = document.getElementById('today-widget');
+        const widgetTitle = document.getElementById('widget-title');
+        const widgetSubtitle = document.getElementById('widget-subtitle');
+        const widgetIcon = document.getElementById('widget-icon');
+        const markTodayBtn = document.getElementById('mark-today-btn');
+        
+        const streakCountEl = document.getElementById('streak-count');
+        const progressPercentEl = document.getElementById('progress-percent');
 
-
-        // --- Utility Functions ---
-
-        /**
-         * Formats a Date object to YYYY-MM-DD string.
-         * @param {Date} date
-         * @returns {string}
-         */
-        function formatDate(date) {
+        // --- NEW SAFE DATE HANDLERS (Timezone Proof) ---
+        
+        // 1. Convert Date Object to "YYYY-MM-DD" using LOCAL time
+        function formatDateLocal(date) {
             const year = date.getFullYear();
             const month = String(date.getMonth() + 1).padStart(2, '0');
             const day = String(date.getDate()).padStart(2, '0');
             return `${year}-${month}-${day}`;
         }
 
-        /**
-         * Adds days to a Date object.
-         * @param {Date} date
-         * @param {number} days
-         * @returns {Date}
-         */
+        // 2. Parse "YYYY-MM-DD" string into a Date Object set to LOCAL midnight
+        function parseDateLocal(dateStr) {
+            const [y, m, d] = dateStr.split('-').map(Number);
+            return new Date(y, m - 1, d);
+        }
+
+        // 3. Add days to a Date object safely
         function addDays(date, days) {
-            const newDate = new Date(date);
-            newDate.setDate(newDate.getDate() + days);
-            return newDate;
-        }
-        
-        /**
-         * Gets the abbreviated day name for a Date object.
-         * @param {Date} date
-         * @returns {string} (e.g., 'Sun', 'Mon')
-         */
-        function getDayName(date) {
-            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-            return days[date.getDay()];
+            const result = new Date(date);
+            result.setDate(result.getDate() + days);
+            return result;
         }
 
+        // --- CORE LOGIC ---
 
-        /**
-         * Calculates the end date and generates the 21-day map.
-         * @param {string} startDateString - YYYY-MM-DD
-         * @param {string} title - The challenge title
-         * @param {Object<string, boolean>} [existingCompletedDays={}]
-         * @returns {{title: string, startDate: string, endDate: string, completedDays: Object<string, boolean>}}
-         */
-        function createChallengeData(startDateString, title, existingCompletedDays = {}) {
-            // Parse date parts to create a local date
-            const parts = startDateString.split('-');
-            const startDate = new Date(parts[0], parts[1] - 1, parts[2]); 
+        function isWorkoutDay(startDateStr, currentDayStr, frequency) {
+            const start = parseDateLocal(startDateStr);
+            const current = parseDateLocal(currentDayStr);
             
-            const endDate = addDays(startDate, CHALLENGE_DAYS - 1);
-            const challengeData = {
-                title: title,
-                startDate: startDateString,
-                endDate: formatDate(endDate),
-                completedDays: {}
-            };
+            // Calculate difference in days
+            const diffTime = Math.round((current - start) / (1000 * 60 * 60 * 24));
+            const dayOfWeek = current.getDay(); // 0=Sun, 1=Mon
 
-            for (let i = 0; i < CHALLENGE_DAYS; i++) {
-                const dayDate = addDays(startDate, i);
-                const dayDateString = formatDate(dayDate);
-                // Preserve existing completion status if available
-                challengeData.completedDays[dayDateString] = existingCompletedDays[dayDateString] || false;
+            if (diffTime < 0) return false; // Date is before start date
+            if (diffTime === 0) return true; // Start Date is ALWAYS a workout day
+
+            switch (frequency) {
+                case 'every-day': return true;
+                case 'every-other': return diffTime % 2 === 0;
+                case 'weekdays': return dayOfWeek >= 1 && dayOfWeek <= 5;
+                case 'weekends': return dayOfWeek === 0 || dayOfWeek === 6;
+                default: return true;
             }
-
-            return challengeData;
         }
 
-        // --- Local Storage Logic ---
+        function calculateStreak(data) {
+            let streak = 0;
+            const today = new Date(); // Local now
+            const start = parseDateLocal(data.startDate);
 
-        /**
-         * Loads challenge data from localStorage.
-         * @returns {Object|null}
-         */
-        function loadLocalData() {
-            const storedData = localStorage.getItem(LOCAL_STORAGE_KEY);
-            if (storedData) {
-                try {
-                    return JSON.parse(storedData);
-                } catch (e) {
-                    console.error("Error parsing stored data:", e);
-                    return null;
+            // Loop backwards from today
+            for (let i = 0; i < 365; i++) {
+                const checkDate = new Date(today);
+                checkDate.setDate(today.getDate() - i); // Go back i days
+                
+                // Stop if we went before the start date
+                // We compare timestamps to be safe
+                if (checkDate.setHours(0,0,0,0) < start.getTime()) break;
+
+                const checkString = formatDateLocal(checkDate);
+                const scheduled = isWorkoutDay(data.startDate, checkString, data.frequency);
+                const completed = data.completedDays[checkString];
+
+                // Logic for TODAY (i=0)
+                if (i === 0) {
+                    if (completed) streak++;
+                    continue; // Continue to check yesterday
                 }
+
+                // Logic for PAST DAYS
+                if (scheduled) {
+                    if (completed) {
+                        streak++;
+                    } else {
+                        // If it was a workout day and we missed it, streak ends.
+                        break;
+                    }
+                }
+                // If it was a Rest Day, we just ignore it and keep the streak alive
             }
-            return null;
+            return streak;
         }
+
+        function createPlan() {
+            const title = titleInput.value || "My Plan";
+            const startStr = startDateInput.value;
+            const freq = frequencySelect.value;
+            
+            if(!startStr) { alert("Please pick a start date!"); return; }
+
+            const data = { title, startDate: startStr, frequency: freq, completedDays: {} };
+            saveData(data);
+            renderApp();
+        }
+
+        function saveData(data) { localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data)); }
         
-        /**
-         * Saves challenge data to localStorage and triggers a UI update.
-         * @param {Object} data - The full challenge data object
-         */
-        function saveLocalData(data) {
-            try {
-                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
-                console.log("Challenge configuration saved locally.");
-                checkAndRender(); // Re-render the UI immediately
-            } catch (error) {
-                console.error("Error saving challenge configuration:", error);
-                statusEl.textContent = "Error saving data locally. Check browser permissions.";
+        function loadData() { 
+            const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+            return raw ? JSON.parse(raw) : null; 
+        }
+
+        function renderWidget(data) {
+            const today = new Date();
+            const todayStr = formatDateLocal(today); // Use safe local formatter
+            const isScheduled = isWorkoutDay(data.startDate, todayStr, data.frequency);
+            const isDone = data.completedDays[todayStr];
+
+            widgetIcon.classList.remove('animate-bounce-slow');
+
+            if (isDone) {
+                widget.className = "relative overflow-hidden rounded-3xl shadow-2xl p-6 md:p-8 text-white mb-6 bg-gradient-to-r from-emerald-500 to-teal-600";
+                widgetTitle.textContent = "CRUSHED IT!";
+                widgetSubtitle.textContent = "Great job today.";
+                widgetIcon.textContent = "✅";
+                markTodayBtn.classList.add('hidden');
+            } else if (isScheduled) {
+                widget.className = "relative overflow-hidden rounded-3xl shadow-2xl p-6 md:p-8 text-white mb-6 bg-gradient-to-r from-orange-500 to-rose-600 shadow-orange-500/30";
+                widgetTitle.textContent = "WORKOUT DAY";
+                widgetSubtitle.textContent = "Keep the streak alive!";
+                widgetIcon.textContent = "🔥";
+                widgetIcon.classList.add('animate-bounce-slow');
+                markTodayBtn.classList.remove('hidden');
+                markTodayBtn.innerHTML = "<span>Mark Complete</span>";
+                markTodayBtn.onclick = () => toggleDay(todayStr);
+            } else {
+                widget.className = "relative overflow-hidden rounded-3xl shadow-2xl p-6 md:p-8 text-white mb-6 bg-gradient-to-r from-blue-400 to-indigo-500";
+                widgetTitle.textContent = "REST DAY";
+                widgetSubtitle.textContent = "Recover & Relax.";
+                widgetIcon.textContent = "🧘";
+                markTodayBtn.classList.add('hidden');
             }
         }
 
-        /**
-         * Updates the completion status for a specific day.
-         * @param {string} dateString - YYYY-MM-DD
-         * @param {boolean} isCompleted
-         */
-        async function updateDayCompletion(dateString, isCompleted) {
-            try {
-                const storedData = loadLocalData(); 
-                if (!storedData) {
-                    console.warn("Attempted to update day but no stored data found.");
-                    return;
-                }
-
-                // Make the modification
-                storedData.completedDays[dateString] = isCompleted;
-
-                // Save and re-render
-                saveLocalData(storedData); 
-
-                console.log(`Day ${dateString} updated to ${isCompleted}`);
-            } catch (error) {
-                console.error("Error updating day completion:", error);
-                statusEl.textContent = "Error updating completion locally.";
-            }
-        }
-
-
-        // --- Rendering and App State ---
-
-        /**
-         * Renders the challenge grid based on the provided data.
-         * @param {{title: string, startDate: string, endDate: string, completedDays: Object<string, boolean>}} challengeData
-         */
-        function renderChallenge(challengeData) {
-            challengeGrid.innerHTML = '';
-            const { title, startDate, endDate, completedDays } = challengeData;
+        function renderGrid(data) {
+            grid.innerHTML = '';
             let completedCount = 0;
+            let totalWorkoutDaysSoFar = 0;
+            
+            const today = new Date();
+            const todayStr = formatDateLocal(today);
+            const startObj = parseDateLocal(data.startDate);
 
-            // Display the custom challenge title
-            challengeTitleDisplay.textContent = title; 
-            challengeDatesEl.textContent = `${startDate} - ${endDate}`;
-            challengeContainer.classList.remove('hidden');
-            setupContainer.classList.add('hidden');
-            statusEl.textContent = "Challenge is active and saved locally!";
+            for(let i=0; i < PLAN_LENGTH; i++) {
+                const d = addDays(startObj, i);
+                const dateStr = formatDateLocal(d);
+                
+                const isScheduled = isWorkoutDay(data.startDate, dateStr, data.frequency);
+                const isDone = data.completedDays[dateStr];
+                
+                // Compare strings to avoid time checking issues
+                const isToday = (dateStr === todayStr);
+                const isPast = (d < new Date().setHours(0,0,0,0));
 
-            // Use the safe date parsing here for rendering too
-            const parts = startDate.split('-');
-            const startDateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+                if (isScheduled && (isPast || isToday)) totalWorkoutDaysSoFar++;
+                if (isScheduled && isDone) completedCount++;
 
-            for (let i = 0; i < CHALLENGE_DAYS; i++) {
-                const dayDate = addDays(startDateObj, i);
-                const dayDateString = formatDate(dayDate);
-                const dayName = getDayName(dayDate); // Get the day of the week
-                const isCompleted = completedDays[dayDateString] || false;
-                const dayNumber = i + 1;
+                // Visuals
+                const card = document.createElement('div');
+                let bgClass = isScheduled 
+                    ? (isDone ? "bg-indigo-600 text-white shadow-indigo-300" : "bg-white text-gray-800 border-gray-200") 
+                    : "bg-gray-100 text-gray-300 border-transparent";
+                
+                // Highlight Today
+                if (isScheduled && !isDone && isToday) bgClass = "bg-orange-100 text-orange-800 border-orange-200 ring-2 ring-orange-400";
 
-                if (isCompleted) {
-                    completedCount++;
-                }
+                card.className = `flex flex-col items-center justify-center p-2 rounded-xl border-2 transition-all cursor-pointer relative h-20 ${bgClass}`;
+                
+                const dayName = d.toLocaleDateString('en-US', { weekday: 'narrow' });
+                
+                const checkMarkHTML = isDone 
+                    ? `<div class="absolute inset-0 flex items-center justify-center rounded-xl bg-indigo-600/10">
+                         <span class="text-4xl font-black text-white drop-shadow-md">✓</span>
+                       </div>` 
+                    : '';
 
-                // Day Card Element
-                const dayCard = document.createElement('div');
-                dayCard.className = `p-2 flex flex-col items-center justify-between rounded-xl shadow-md cursor-pointer transition-all duration-300 transform hover:scale-[1.02] ${
-                    isCompleted ? 'bg-completed-day text-white shadow-completed-shadow/50' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                }`;
-                dayCard.dataset.date = dayDateString;
-
-                // Day Number and Day Name
-                dayCard.innerHTML = `
-                    <div class="text-sm font-bold">Day ${dayNumber}</div>
-                    <div class="text-xs ${isCompleted ? 'text-white/80' : 'text-gray-500'}">${dayName}</div>
-                    <div class="mt-1 text-2xl">
-                        ${isCompleted ? '&#10003;' : '&#9633;'}
-                    </div>
+                card.innerHTML = `
+                    <span class="text-[10px] font-bold uppercase">${dayName}</span>
+                    <span class="text-xl font-bold">${d.getDate()}</span>
+                    ${checkMarkHTML}
                 `;
 
-                // Click handler to toggle completion
-                dayCard.addEventListener('click', () => {
-                    const newStatus = !isCompleted;
-                    updateDayCompletion(dayDateString, newStatus);
-                });
-
-                challengeGrid.appendChild(dayCard);
+                if (isScheduled) card.onclick = () => toggleDay(dateStr);
+                grid.appendChild(card);
             }
 
-            // Update Progress Bar
-            const progressPercentage = Math.round((completedCount / CHALLENGE_DAYS) * 100);
-            progressBar.style.width = `${progressPercentage}%`;
-            progressTextEl.textContent = `${progressPercentage}% (${completedCount}/${CHALLENGE_DAYS} days)`;
+            const percent = totalWorkoutDaysSoFar === 0 ? 0 : Math.round((completedCount / totalWorkoutDaysSoFar) * 100);
+            progressPercentEl.textContent = `${percent}%`;
+            streakCountEl.textContent = calculateStreak(data);
+            document.getElementById('display-title').textContent = data.title;
         }
-        
-        /**
-         * Checks for local data and renders the correct view (Challenge or Setup).
-         */
-        function checkAndRender() {
-            const data = loadLocalData();
+
+        function toggleDay(dateStr) {
+            const data = loadData();
+            if(!data) return;
+            data.completedDays[dateStr] = !data.completedDays[dateStr];
+            saveData(data);
+            renderApp();
+        }
+
+        function renderApp() {
+            const data = loadData();
             if (data) {
-                renderChallenge(data);
+                setupContainer.classList.add('hidden');
+                challengeContainer.classList.remove('hidden');
+                renderWidget(data);
+                renderGrid(data);
             } else {
                 setupContainer.classList.remove('hidden');
                 challengeContainer.classList.add('hidden');
-                statusEl.textContent = "Please set your challenge start date.";
-                challengeTitleDisplay.textContent = "21-Day Challenge"; // Reset title on setup screen
             }
         }
 
-
-        // --- Event Handlers ---
-
-        function updateEndDateDisplay() {
-            const startDateString = startDateInput.value;
-            if (startDateString) {
-                const parts = startDateString.split('-');
-                const startDate = new Date(parts[0], parts[1] - 1, parts[2]); // Safe local date parsing
-                const endDate = addDays(startDate, CHALLENGE_DAYS - 1);
-                endDateDisplay.innerHTML = `Challenge End Date: <span class="font-semibold">${formatDate(endDate)}</span>`;
-            } else {
-                endDateDisplay.textContent = `The challenge will run for ${CHALLENGE_DAYS} days.`;
-            }
-        }
-
-        startDateInput.addEventListener('change', updateEndDateDisplay);
-        window.addEventListener('load', updateEndDateDisplay);
-
-        startDateBtn.addEventListener('click', () => {
-            const startDateString = startDateInput.value;
-            const challengeTitle = challengeTitleInput.value.trim() || '21-Day Challenge'; 
-            
-            if (!startDateString) {
-                statusEl.textContent = "Please select a valid start date!";
-                return;
-            }
-
-            // Create new data and save it, which triggers rendering
-            const newChallengeData = createChallengeData(startDateString, challengeTitle); 
-            saveLocalData(newChallengeData);
+        document.getElementById('start-challenge-btn').addEventListener('click', createPlan);
+        document.getElementById('reset-btn').addEventListener('click', () => {
+            if(confirm("Delete current plan?")) { localStorage.removeItem(LOCAL_STORAGE_KEY); renderApp(); }
         });
 
-        resetBtn.addEventListener('click', async () => {
-            if (await confirm("Are you sure you want to reset and delete your current challenge progress? This action cannot be undone.")) {
-                 try {
-                    localStorage.removeItem(LOCAL_STORAGE_KEY);
-                    statusEl.textContent = "Challenge reset. Please set your challenge start date.";
-                    console.log("Challenge reset and local data deleted.");
-                    startDateInput.value = '';
-                    updateEndDateDisplay();
-                    checkAndRender(); // Revert to setup screen
-                } catch (e) {
-                    console.error("Failed to reset challenge:", e);
-                    statusEl.textContent = "Failed to reset challenge.";
-                }
-            }
-        });
+        startDateInput.value = formatDateLocal(new Date());
 
-        // Handle browser confirmation via custom modal logic instead of native alert/confirm
-        function confirm(message) {
-            return new Promise((resolve) => {
-                // Create minimal confirmation dialog
-                const modal = document.createElement('div');
-                modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50';
-                modal.innerHTML = `
-                    <div class="bg-white p-6 rounded-lg shadow-xl w-80">
-                        <p class="text-gray-700 mb-4">${message}</p>
-                        <div class="flex justify-end space-x-3">
-                            <button id="modal-cancel" class="py-1 px-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100">Cancel</button>
-                            <button id="modal-ok" class="py-1 px-3 bg-red-600 text-white rounded-lg hover:bg-red-700">OK</button>
-                        </div>
-                    </div>
-                `;
-                document.body.appendChild(modal);
-
-                document.getElementById('modal-ok').onclick = () => {
-                    document.body.removeChild(modal);
-                    resolve(true);
-                };
-
-                document.getElementById('modal-cancel').onclick = () => {
-                    document.body.removeChild(modal);
-                    resolve(false);
-                };
-            });
-        }
-
-        // --- Initialization ---
-
-        window.onload = checkAndRender;
-
+        renderApp();
     </script>
 </body>
 </html>
